@@ -3,77 +3,71 @@
 --
 -- Touch Button Verwaltung
 --
--- Unterstützte Buttons:
---
--- [Single]
--- [Multi]
--- [Stop]
--- [Auto]
--- [Exit]
---
+-- WICHTIG: Die Positionen werden hier EINMAL berechnet
+-- (touch.layout) und von ui.lua zum Zeichnen verwendet.
+-- Dadurch stimmen Zeichenposition und Klickbereich immer
+-- überein.
 --========================================================--
 
 local touch = {}
 
 ------------------------------------------------------------
--- Button Definitionen
+-- Buttons (Reihenfolge = Reihenfolge auf dem Bildschirm)
 ------------------------------------------------------------
+
+local order = { "single", "multi", "stop", "auto", "exit" }
 
 local buttons = {
-
-    single = {
-        text = "[Single]",
-        x1 = 9,
-        x2 = 16,
-        y1 = 23,
-        y2 = 23
-    },
-
-    multi = {
-        text = "[Multi]",
-        x1 = 20,
-        x2 = 26,
-        y1 = 23,
-        y2 = 23
-    },
-
-    stop = {
-        text = "[Stop]",
-        x1 = 31,
-        x2 = 36,
-        y1 = 23,
-        y2 = 23
-    },
-
-    auto = {
-        text = "[Auto]",
-        x1 = 41,
-        x2 = 46,
-        y1 = 23,
-        y2 = 23
-    },
-
-    exit = {
-        text = "[Exit]",
-        x1 = 51,
-        x2 = 56,
-        y1 = 23,
-        y2 = 23
-    }
+    single = { text = "[Single]" },
+    multi  = { text = "[Multi]"  },
+    stop   = { text = "[Stop]"   },
+    auto   = { text = "[Auto]"   },
+    exit   = { text = "[Exit]"   }
 }
 
+local GAP = 3   -- Leerzeichen zwischen den Buttons
+
 ------------------------------------------------------------
--- Prüft welcher Button gedrückt wurde
+-- Positionen berechnen (zentriert)
+------------------------------------------------------------
+
+function touch.layout(screenWidth, y)
+
+    local total = GAP * (#order - 1)
+
+    for _, name in ipairs(order) do
+        total = total + #buttons[name].text
+    end
+
+    local x = math.floor((screenWidth - total) / 2) + 1
+
+    for _, name in ipairs(order) do
+
+        local b = buttons[name]
+
+        b.x1 = x
+        b.x2 = x + #b.text - 1
+        b.y1 = y
+        b.y2 = y
+
+        x = b.x2 + 1 + GAP
+    end
+end
+
+------------------------------------------------------------
+-- Welcher Button liegt unter (x, y)?
 ------------------------------------------------------------
 
 function touch.getButton(x, y)
 
-    for name, btn in pairs(buttons) do
+    if not x or not y then
+        return nil
+    end
 
-        if x >= btn.x1 and
-           x <= btn.x2 and
-           y >= btn.y1 and
-           y <= btn.y2 then
+    for name, b in pairs(buttons) do
+
+        if x >= b.x1 and x <= b.x2 and
+           y >= b.y1 and y <= b.y2 then
 
             return name
 
@@ -84,83 +78,32 @@ function touch.getButton(x, y)
 end
 
 ------------------------------------------------------------
--- Alle Buttons zurückgeben
-------------------------------------------------------------
-
-function touch.getButtons()
-    return buttons
-end
-
-------------------------------------------------------------
--- Einzelnen Button abrufen
-------------------------------------------------------------
-
-function touch.getButtonData(name)
-    return buttons[name]
-end
-
-------------------------------------------------------------
--- Prüfen ob Touch auf einem Button liegt
-------------------------------------------------------------
-
-function touch.isButton(x, y)
-
-    return touch.getButton(x, y) ~= nil
-
-end
-
-------------------------------------------------------------
--- Zentrierte Position berechnen
-------------------------------------------------------------
-
-function touch.centerButtons(screenWidth)
-
-    local totalWidth = 48
-
-    local startX =
-        math.floor(
-            (screenWidth - totalWidth) / 2
-        )
-
-    buttons.single.x1 = startX + 1
-    buttons.single.x2 = startX + 8
-
-    buttons.multi.x1  = startX + 12
-    buttons.multi.x2  = startX + 18
-
-    buttons.stop.x1   = startX + 23
-    buttons.stop.x2   = startX + 28
-
-    buttons.auto.x1   = startX + 33
-    buttons.auto.x2   = startX + 38
-
-    buttons.exit.x1   = startX + 43
-    buttons.exit.x2   = startX + 48
-
-end
-
-------------------------------------------------------------
--- Button Positionen für UI
+-- Daten zum Zeichnen (in Bildschirmreihenfolge)
 ------------------------------------------------------------
 
 function touch.getDrawData()
 
-    return {
+    local list = {}
 
-        { x = buttons.single.x1, y = 23, text = "[Single]" },
-        { x = buttons.multi.x1 , y = 23, text = "[Multi]"  },
-        { x = buttons.stop.x1  , y = 23, text = "[Stop]"   },
-        { x = buttons.auto.x1  , y = 23, text = "[Auto]"   },
-        { x = buttons.exit.x1  , y = 23, text = "[Exit]"   }
+    for _, name in ipairs(order) do
 
-    }
+        local b = buttons[name]
 
+        table.insert(list, {
+            name = name,
+            x    = b.x1,
+            y    = b.y1,
+            text = b.text
+        })
+    end
+
+    return list
 end
 
 ------------------------------------------------------------
--- Initialisierung
+-- Standard-Layout (falls vor dem ersten Zeichnen geklickt wird)
 ------------------------------------------------------------
 
-touch.centerButtons(80)
+touch.layout(80, 23)
 
 return touch

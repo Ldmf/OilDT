@@ -6,7 +6,11 @@
 local component = require("component")
 local gpu = component.gpu
 
+local touch = require("lib.touch")
+
 local ui = {}
+
+local BUTTON_ROW = 23
 
 ------------------------------------------------------------
 -- Bildschirm löschen
@@ -116,6 +120,7 @@ end
 ------------------------------------------------------------
 
 function ui.header(
+    mode,
     status,
     dtMode,
     activeCount
@@ -129,7 +134,7 @@ function ui.header(
     gpu.set(
         2,
         3,
-        "Mode      : " .. status
+        "Mode      : " .. mode .. " (" .. status .. ")"
     )
 
     gpu.set(
@@ -174,6 +179,43 @@ function ui.tankLine(
         20,
         percent
     )
+
+end
+
+------------------------------------------------------------
+-- Buttons zeichnen
+--
+-- Position kommt aus touch.lua -> Klickbereich == Zeichnung
+------------------------------------------------------------
+
+function ui.buttons(mode, dtMode)
+
+    local w = select(1, gpu.getResolution())
+
+    touch.layout(w, BUTTON_ROW)
+
+    local active = {
+        single = (dtMode == "SINGLE"),
+        multi  = (dtMode == "MULTI"),
+        auto   = (mode == "AUTO"),
+        stop   = (mode == "STOP")
+    }
+
+    for _, b in ipairs(touch.getDrawData()) do
+
+        if active[b.name] then
+            gpu.setBackground(0x00AA00)
+            gpu.setForeground(0x000000)
+        else
+            gpu.setBackground(0x333333)
+            gpu.setForeground(0xFFFFFF)
+        end
+
+        gpu.set(b.x, b.y, b.text)
+    end
+
+    gpu.setBackground(0x000000)
+    gpu.setForeground(0xFFFFFF)
 
 end
 
@@ -223,6 +265,7 @@ function ui.draw(
     --------------------------------------------------------
 
     ui.header(
+        mode,
         status,
         dtMode,
         tostring(activeCount)
@@ -283,11 +326,7 @@ function ui.draw(
     -- Buttons
     --------------------------------------------------------
 
-    gpu.set(10,23,"[Single]")
-    gpu.set(20,23,"[Multi]")
-    gpu.set(30,23,"[Stop]")
-    gpu.set(40,23,"[Auto]")
-    gpu.set(50,23,"[Exit]")
+    ui.buttons(mode, dtMode)
 
 end
 

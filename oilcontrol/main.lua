@@ -5,7 +5,7 @@
 --
 -- F1 = Single Mode
 -- F2 = Multi Mode
--- F3 = Force Stop
+-- F3 = Stop (Automatik aus, alle DTs aus)
 -- F4 = Auto
 -- F5 = Exit
 --
@@ -73,12 +73,18 @@ local rates = {
 
 local running = true
 
+-- "AUTO" = Automatik aktiv, "STOP" = manuell gestoppt
 local mode = "AUTO"
+
+-- "SINGLE" oder "MULTI"
 local dtMode = "MULTI"
+
+-- Wird von Single/Multi Buttons gesetzt: laufende DTs
+-- werden einmal neu bewertet
+local forceRecalc = false
 
 local lastScan = 0
 local tanks = {}
-
 
 ------------------------------------------------------------
 -- DT Status
@@ -113,15 +119,15 @@ local function buildTankData()
 
     local result = {}
 
-	local map = {
-		heavyFuel = "Sulfuric Heavy Fuel",
-		lightFuel = "Sulfuric Light Fuel",
-		naphtha   = "Sulfuric Naphtha",
-		acid      = "Nephthenic Acid",
-		gas       = "Sulfuric Gas"
-}
+    local map = {
+        heavyFuel = "Sulfuric Heavy Fuel",
+        lightFuel = "Sulfuric Light Fuel",
+        naphtha   = "Sulfuric Naphtha",
+        acid      = "Nephthenic Acid",
+        gas       = "Sulfuric Gas"
+    }
 
-    for key,title in pairs(map) do
+    for key, title in pairs(map) do
 
         if tanks[key] then
 
@@ -150,89 +156,45 @@ end
 -- DT Steuerung
 ------------------------------------------------------------
 
+-- Alles hart ausschalten (unabhängig vom gemerkten Zustand)
 local function stopAll()
 
-    dt.disable(
-        cfg.RS_SIDE,
-        cfg.CHANNELS.light
-    )
+    for name, channel in pairs(cfg.CHANNELS) do
 
-    dt.disable(
-        cfg.RS_SIDE,
-        cfg.CHANNELS.raw
-    )
+        dt.disable(cfg.RS_SIDE, channel)
 
-    dt.disable(
-        cfg.RS_SIDE,
-        cfg.CHANNELS.oil
-    )
-
-    dt.disable(
-        cfg.RS_SIDE,
-        cfg.CHANNELS.heavy
-    )
-
-    activeDTs.light = false
-    activeDTs.raw   = false
-    activeDTs.oil   = false
-    activeDTs.heavy = false
-end
-
-------------------------------------------------------------
--- Aktivieren einzelner DT
-------------------------------------------------------------
-
-local function enableTower(name)
-
-    if name == "light" then
-
-        dt.enable(
-            cfg.RS_SIDE,
-            cfg.CHANNELS.light
-        )
-
-        activeDTs.light = true
-
-    elseif name == "raw" then
-
-        dt.enable(
-            cfg.RS_SIDE,
-            cfg.CHANNELS.raw
-        )
-
-        activeDTs.raw = true
-
-    elseif name == "oil" then
-
-        dt.enable(
-            cfg.RS_SIDE,
-            cfg.CHANNELS.oil
-        )
-
-        activeDTs.oil = true
-
-    elseif name == "heavy" then
-
-        dt.enable(
-            cfg.RS_SIDE,
-            cfg.CHANNELS.heavy
-        )
-
-        activeDTs.heavy = true
-
+        activeDTs[name] = false
     end
 end
 
-------------------------------------------------------------
--- Zurücksetzen
-------------------------------------------------------------
+-- Gewünschte DTs setzen. Es werden NUR Kanäle geschaltet,
+-- die sich wirklich ändern -> kein Aus/Ein-Flackern mehr.
+local function applyTowers(wanted)
 
-local function clearStates()
+    local want = {
+        light = false,
+        raw   = false,
+        oil   = false,
+        heavy = false
+    }
 
-    activeDTs.light = false
-    activeDTs.raw   = false
-    activeDTs.oil   = false
-    activeDTs.heavy = false
+    for _, name in ipairs(wanted) do
+        want[name] = true
+    end
+
+    for name, channel in pairs(cfg.CHANNELS) do
+
+        if want[name] ~= activeDTs[name] then
+
+            if want[name] then
+                dt.enable(cfg.RS_SIDE, channel)
+            else
+                dt.disable(cfg.RS_SIDE, channel)
+            end
+
+            activeDTs[name] = want[name]
+        end
+    end
 end
 
 ------------------------------------------------------------
@@ -245,15 +207,18 @@ local function handleLogic(data)
         return
     end
 
+    local recalc = forceRecalc
+    forceRecalc = false
+
     --------------------------------------------------------
     -- Stop bei 98%
     --------------------------------------------------------
 
-    for _,tank in pairs(data) do
+    for _, tank in pairs(data) do
 
         if tank.percent >= cfg.STOP_PERCENT then
 
-            stopAll()
+            applyTowers({})
             return
 
         end
@@ -263,24 +228,25 @@ local function handleLogic(data)
     -- Start prüfen
     --------------------------------------------------------
 
-    local needProduction = false
+    local needProduction =
+        recalc and logic.isRunning(activeDTs)
 
-    for _,tank in pairs(data) do
+    if not needProduction then
 
-        if tank.percent < cfg.START_PERCENT then
+        for _, tank in pairs(data) do
 
-            needProduction = true
-            break
+            if tank.percent < cfg.START_PERCENT then
 
+                needProduction = true
+                break
+
+            end
         end
     end
 
     if not needProduction then
         return
     end
-
-    stopAll()
-    clearStates()
 
     --------------------------------------------------------
     -- Single Mode
@@ -294,9 +260,7 @@ local function handleLogic(data)
                 rates
             )
 
-        if best then
-            enableTower(best)
-        end
+        applyTowers(best and { best } or {})
 
     --------------------------------------------------------
     -- Multi Mode
@@ -304,15 +268,12 @@ local function handleLogic(data)
 
     else
 
-        local towers =
+        applyTowers(
             logic.selectNeededDTs(
                 data,
                 rates
             )
-
-        for _,name in ipairs(towers) do
-            enableTower(name)
-        end
+        )
     end
 end
 
@@ -322,7 +283,7 @@ end
 
 local function buildETA(data)
 
-    for _,tank in pairs(data) do
+    for _, tank in pairs(data) do
 
         local rate =
             logic.getTotalRate(
@@ -334,67 +295,64 @@ local function buildETA(data)
         tank.eta =
             eta.seconds(
                 tank.amount,
-                tank.capacity*0.98,
+                tank.capacity * 0.98,
                 rate
             )
     end
 end
 
 ------------------------------------------------------------
--- Touch
+-- Befehle (Touch UND Tastatur)
 ------------------------------------------------------------
 
-local function handleTouch(x,y)
+local function handleCommand(cmd)
 
-    local btn =
-        touch.getButton(x,y)
-
-    if not btn then
+    if not cmd then
         return
     end
 
-    if btn == "single" then
+    if cmd == "single" then
 
         dtMode = "SINGLE"
+        forceRecalc = true
 
-    elseif btn == "multi" then
+    elseif cmd == "multi" then
 
         dtMode = "MULTI"
+        forceRecalc = true
 
-    elseif btn == "stop" then
+    elseif cmd == "stop" then
 
+        -- WICHTIG: Modus auf STOP, sonst schaltet die
+        -- Automatik sofort wieder ein
+        mode = "STOP"
         stopAll()
 
-    elseif btn == "auto" then
+    elseif cmd == "auto" then
 
         mode = "AUTO"
 
-    elseif btn == "exit" then
+    elseif cmd == "exit" then
 
-        stopAll()
         running = false
 
     end
 end
 
-------------------------------------------------------------
--- Keyboard
-------------------------------------------------------------
-
-local function handleKey(code)
-
-    if code == keyboard.keys.f1 then
-
-        dtMode = "SINGLE"
-
-    elseif code == keyboard.keys.f2 then
-
-	end
-end	
+local keyToCommand = {
+    [keyboard.keys.f1] = "single",
+    [keyboard.keys.f2] = "multi",
+    [keyboard.keys.f3] = "stop",
+    [keyboard.keys.f4] = "auto",
+    [keyboard.keys.f5] = "exit"
+}
 
 ------------------------------------------------------------
 -- Initialisierung
 ------------------------------------------------------------
+
+-- Ausgänge mit dem internen Zustand synchronisieren
+stopAll()
 
 tanks = tankManager.scan()
 lastScan = computer.uptime()
@@ -443,31 +401,26 @@ while running do
 
     --------------------------------------------------------
     -- Eingaben verarbeiten
+    -- (pull kehrt bei Touch/Taste sofort zurück)
     --------------------------------------------------------
 
     local ev = {
-        event.pull(0.1)
+        event.pull(0.5)
     }
-
-    --------------------------------------------------------
-    -- Touch
-    --------------------------------------------------------
 
     if ev[1] == "touch" then
 
-        handleTouch(
-            ev[3],
-            ev[4]
+        handleCommand(
+            touch.getButton(
+                ev[3],
+                ev[4]
+            )
         )
-
-    --------------------------------------------------------
-    -- Tastatur
-    --------------------------------------------------------
 
     elseif ev[1] == "key_down" then
 
-        handleKey(
-            ev[4]
+        handleCommand(
+            keyToCommand[ev[4]]
         )
 
     end
