@@ -19,14 +19,11 @@ local event = require("event")
 local keyboard = require("keyboard")
 local term = require("term")
 
-local cfg = require("config")
-local tankManager = require("tank_manager")
-local dt = require("dt")
-local eta = require("eta")
-local logic = require("logic")
-local ui = require("ui")
-local touch = require("touch")
-local recipes = require("recipes")
+local ui = require("lib.ui")
+local touch = require("lib.touch")
+local eta = require("lib.eta")
+local dt = require("lib.dt")
+local tankManager = require("lib.tank_manager")
 
 ------------------------------------------------------------
 -- Status
