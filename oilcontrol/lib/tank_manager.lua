@@ -3,6 +3,7 @@ local component = require("component")
 local tankManager = {}
 
 local function classifyFluid(name)
+
     name = string.lower(name)
 
     if name:find("heavy fuel") then
@@ -11,15 +12,16 @@ local function classifyFluid(name)
     elseif name:find("light fuel") then
         return "lightFuel"
 
-    elseif name:find("naphta") then
-        return "naphta"
+    elseif name:find("naphtha") then
+        return "naphtha"
 
     elseif name:find("acid") then
-        return "nitricAcid"
+        return "acid"
 
     elseif name:find("gas") then
         return "gas"
     end
+
 end
 
 function tankManager.scan()

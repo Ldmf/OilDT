@@ -33,10 +33,10 @@ cfg.RESCAN_INTERVAL = 30
 --
 -- Channel = Bundled Cable Kanal
 --
--- Schwarz = 1
--- Grau    = 4
--- Orange  = 7
--- Gelb    = 15
+-- Gelb = 1
+-- Orange      = 4
+-- Grau      = 7
+-- Schwarz     = 15
 ------------------------------------------------------------
 
 cfg.CHANNELS = {

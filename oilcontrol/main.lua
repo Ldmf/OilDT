@@ -24,6 +24,48 @@ local touch = require("lib.touch")
 local eta = require("lib.eta")
 local dt = require("lib.dt")
 local tankManager = require("lib.tank_manager")
+local cfg = require("config")
+local logic = require("logic")
+local recipes = require("recipes")
+
+------------------------------------------------------------
+-- Förderraten mb/s berechnen
+------------------------------------------------------------
+
+local rates = {
+
+    light = {
+        heavyFuel = recipes.LIGHT_OIL.heavyFuel / recipes.LIGHT_OIL.cycle,
+        lightFuel = recipes.LIGHT_OIL.lightFuel / recipes.LIGHT_OIL.cycle,
+        naphtha   = recipes.LIGHT_OIL.naphta    / recipes.LIGHT_OIL.cycle,
+        acid      = recipes.LIGHT_OIL.acid      / recipes.LIGHT_OIL.cycle,
+        gas       = recipes.LIGHT_OIL.gas       / recipes.LIGHT_OIL.cycle
+    },
+
+    raw = {
+        heavyFuel = recipes.RAW_OIL.heavyFuel / recipes.RAW_OIL.cycle,
+        lightFuel = recipes.RAW_OIL.lightFuel / recipes.RAW_OIL.cycle,
+        naphtha   = recipes.RAW_OIL.naphta    / recipes.RAW_OIL.cycle,
+        acid      = recipes.RAW_OIL.acid      / recipes.RAW_OIL.cycle,
+        gas       = recipes.RAW_OIL.gas       / recipes.RAW_OIL.cycle
+    },
+
+    oil = {
+        heavyFuel = recipes.OIL.heavyFuel / recipes.OIL.cycle,
+        lightFuel = recipes.OIL.lightFuel / recipes.OIL.cycle,
+        naphtha   = recipes.OIL.naphta    / recipes.OIL.cycle,
+        acid      = recipes.OIL.acid      / recipes.OIL.cycle,
+        gas       = recipes.OIL.gas       / recipes.OIL.cycle
+    },
+
+    heavy = {
+        heavyFuel = recipes.HEAVY_OIL.heavyFuel / recipes.HEAVY_OIL.cycle,
+        lightFuel = recipes.HEAVY_OIL.lightFuel / recipes.HEAVY_OIL.cycle,
+        naphtha   = recipes.HEAVY_OIL.naphta    / recipes.HEAVY_OIL.cycle,
+        acid      = recipes.HEAVY_OIL.acid      / recipes.HEAVY_OIL.cycle,
+        gas       = recipes.HEAVY_OIL.gas       / recipes.HEAVY_OIL.cycle
+    }
+}
 
 ------------------------------------------------------------
 -- Status
@@ -290,9 +332,9 @@ local function buildETA(data)
             )
 
         tank.eta =
-            eta.calculate(
+            eta.seconds(
                 tank.amount,
-                tank.capacity,
+                tank.capacity*0.98,
                 rate
             )
     end
@@ -349,3 +391,95 @@ local function handleKey(code)
 
 	end
 end	
+
+------------------------------------------------------------
+-- Initialisierung
+------------------------------------------------------------
+
+tanks = tankManager.scan()
+lastScan = computer.uptime()
+
+------------------------------------------------------------
+-- Main Loop
+------------------------------------------------------------
+
+while running do
+
+    --------------------------------------------------------
+    -- Tanks aktualisieren
+    --------------------------------------------------------
+
+    updateTanks()
+
+    --------------------------------------------------------
+    -- Tankdaten erzeugen
+    --------------------------------------------------------
+
+    local tankData =
+        buildTankData()
+
+    --------------------------------------------------------
+    -- Automatik
+    --------------------------------------------------------
+
+    handleLogic(tankData)
+
+    --------------------------------------------------------
+    -- ETA berechnen
+    --------------------------------------------------------
+
+    buildETA(tankData)
+
+    --------------------------------------------------------
+    -- GUI zeichnen
+    --------------------------------------------------------
+
+    ui.draw(
+        tankData,
+        activeDTs,
+        mode,
+        dtMode
+    )
+
+    --------------------------------------------------------
+    -- Eingaben verarbeiten
+    --------------------------------------------------------
+
+    local ev = {
+        event.pull(0.1)
+    }
+
+    --------------------------------------------------------
+    -- Touch
+    --------------------------------------------------------
+
+    if ev[1] == "touch" then
+
+        handleTouch(
+            ev[3],
+            ev[4]
+        )
+
+    --------------------------------------------------------
+    -- Tastatur
+    --------------------------------------------------------
+
+    elseif ev[1] == "key_down" then
+
+        handleKey(
+            ev[4]
+        )
+
+    end
+
+end
+
+------------------------------------------------------------
+-- Aufräumen
+------------------------------------------------------------
+
+stopAll()
+
+term.clear()
+
+print("DT Controller beendet.")

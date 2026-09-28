@@ -1,8 +1,13 @@
 local eta = {}
 
-function eta.seconds(current, target, rate)
+function eta.seconds(
+    current,
+    target,
+    rate
+)
 
-    local missing = target - current
+    local missing =
+        target - current
 
     if missing <= 0 then
         return 0
@@ -13,6 +18,20 @@ function eta.seconds(current, target, rate)
     end
 
     return missing / rate
+
+end
+
+function eta.calculate(
+    amount,
+    capacity,
+    rate
+)
+
+    return eta.seconds(
+        amount,
+        capacity * 0.98,
+        rate
+    )
 
 end
 

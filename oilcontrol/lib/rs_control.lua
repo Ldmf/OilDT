@@ -24,4 +24,3 @@ function controller.setChannels(channels)
 end
 
 return controller
-`

@@ -1,5 +1,184 @@
 ------------------------------------------------------------
--- Gesamte Oberfläche zeichnen
+-- ui.lua
+-- DT Refinery Controller UI
+------------------------------------------------------------
+
+local component = require("component")
+local gpu = component.gpu
+
+local ui = {}
+
+------------------------------------------------------------
+-- Bildschirm löschen
+------------------------------------------------------------
+
+function ui.clear()
+
+    local w, h = gpu.getResolution()
+
+    gpu.setBackground(0x000000)
+    gpu.setForeground(0xFFFFFF)
+
+    gpu.fill(1, 1, w, h, " ")
+
+end
+
+------------------------------------------------------------
+-- Text zentrieren
+------------------------------------------------------------
+
+function ui.center(y, text)
+
+    local w = select(1, gpu.getResolution())
+
+    local x =
+        math.floor(
+            (w - #text) / 2
+        ) + 1
+
+    gpu.set(x, y, text)
+
+end
+
+------------------------------------------------------------
+-- Fortschrittsbalken
+------------------------------------------------------------
+
+function ui.bar(
+    x,
+    y,
+    width,
+    percent
+)
+
+    local filled =
+        math.floor(
+            width * percent / 100
+        )
+
+    if filled < 0 then
+        filled = 0
+    end
+
+    if filled > width then
+        filled = width
+    end
+
+    gpu.set(
+        x,
+        y,
+        "[" ..
+        string.rep("#", filled) ..
+        string.rep("-", width - filled) ..
+        "]"
+    )
+
+end
+
+------------------------------------------------------------
+-- ETA formatieren
+------------------------------------------------------------
+
+local function formatETA(seconds)
+
+    if not seconds then
+        return "--:--:--"
+    end
+
+    if seconds == math.huge then
+        return "--:--:--"
+    end
+
+    local h =
+        math.floor(seconds / 3600)
+
+    local m =
+        math.floor(
+            (seconds % 3600) / 60
+        )
+
+    local s =
+        math.floor(
+            seconds % 60
+        )
+
+    return string.format(
+        "%02d:%02d:%02d",
+        h,
+        m,
+        s
+    )
+
+end
+
+------------------------------------------------------------
+-- Header
+------------------------------------------------------------
+
+function ui.header(
+    status,
+    dtMode,
+    activeCount
+)
+
+    ui.center(
+        1,
+        "DT REFINERY CONTROL"
+    )
+
+    gpu.set(
+        2,
+        3,
+        "Mode      : " .. status
+    )
+
+    gpu.set(
+        2,
+        4,
+        "DT Mode   : " .. dtMode
+    )
+
+    gpu.set(
+        2,
+        5,
+        "DT Active : " .. activeCount
+    )
+
+end
+
+------------------------------------------------------------
+-- Tankzeile
+------------------------------------------------------------
+
+function ui.tankLine(
+    y,
+    name,
+    percent,
+    etaText
+)
+
+    gpu.set(
+        2,
+        y,
+        string.format(
+            "%-22s %6.2f%% ETA %s",
+            name,
+            percent,
+            etaText
+        )
+    )
+
+    ui.bar(
+        45,
+        y,
+        20,
+        percent
+    )
+
+end
+
+------------------------------------------------------------
+-- Hauptanzeige
 ------------------------------------------------------------
 
 function ui.draw(
@@ -12,15 +191,26 @@ function ui.draw(
     ui.clear()
 
     --------------------------------------------------------
-    -- Status bestimmen
+    -- Status ermitteln
     --------------------------------------------------------
 
     local activeCount = 0
 
-    if activeDTs.light then activeCount = activeCount + 1 end
-    if activeDTs.raw then activeCount = activeCount + 1 end
-    if activeDTs.oil then activeCount = activeCount + 1 end
-    if activeDTs.heavy then activeCount = activeCount + 1 end
+    if activeDTs.light then
+        activeCount = activeCount + 1
+    end
+
+    if activeDTs.raw then
+        activeCount = activeCount + 1
+    end
+
+    if activeDTs.oil then
+        activeCount = activeCount + 1
+    end
+
+    if activeDTs.heavy then
+        activeCount = activeCount + 1
+    end
 
     local status = "IDLE"
 
@@ -29,7 +219,7 @@ function ui.draw(
     end
 
     --------------------------------------------------------
-    -- Kopfbereich
+    -- Header
     --------------------------------------------------------
 
     ui.header(
@@ -39,10 +229,8 @@ function ui.draw(
     )
 
     --------------------------------------------------------
-    -- Tanks
+    -- Tankanzeige
     --------------------------------------------------------
-
-    local y = 7
 
     local order = {
         "heavyFuel",
@@ -52,42 +240,22 @@ function ui.draw(
         "gas"
     }
 
+    local y = 7
+
     for _, key in ipairs(order) do
 
-        local tank = tankData[key]
+        local tank =
+            tankData[key]
 
         if tank then
-
-            local etaText = "--"
-
-            if tank.eta then
-
-                local h =
-                    math.floor(tank.eta / 3600)
-
-                local m =
-                    math.floor(
-                        (tank.eta % 3600) / 60
-                    )
-
-                local s =
-                    math.floor(
-                        tank.eta % 60
-                    )
-
-                etaText =
-                    string.format(
-                        "%02d:%02d:%02d",
-                        h,m,s
-                    )
-
-            end
 
             ui.tankLine(
                 y,
                 tank.label,
                 tank.percent,
-                etaText
+                formatETA(
+                    tank.eta
+                )
             )
 
             y = y + 3
@@ -122,3 +290,5 @@ function ui.draw(
     gpu.set(50,23,"[Exit]")
 
 end
+
+return ui
